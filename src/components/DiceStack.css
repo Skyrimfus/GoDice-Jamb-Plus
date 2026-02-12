@@ -1,0 +1,11 @@
+/* DiceStack.css */
+.dice-stack {
+  position: sticky;   /* 👈 stick to top of container, works better than fixed on small screens */
+  top: 20px;          /* distance from top */
+  margin-left: 10px;  /* space between Ticket and DiceStack */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 80px;    /* prevent overflow */
+  flex-shrink: 0;     /* don’t shrink */
+}

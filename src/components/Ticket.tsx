@@ -1,5 +1,5 @@
 import React, { type MouseEventHandler } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./Ticket.css";
 import Cell from "./Cell";
 import type { DieData } from "./types";
@@ -12,41 +12,52 @@ const HEADERS = [
   {id:"A", text:"NAJAVA"}];
 
 const ROWS = [
-  {id:"1", playable:true, label:"1", maxValue:5, naturalMax: 5},
-  {id:"2", playable:true, label:"2", maxValue:10, naturalMax: 10},
-  {id:"3", playable:true, label:"3", maxValue:15, naturalMax: 15},
-  {id:"4", playable:true, label:"4", maxValue:20, naturalMax: 20},
-  {id:"5", playable:true, label:"5", maxValue:25, naturalMax: 25},
-  {id:"6", playable:true, label:"6", maxValue:30, naturalMax: 30},
+  {id:"1", playable:true, label:"1", maxValue:5, naturalMax: 5, secondMaxValue:4},
+  {id:"2", playable:true, label:"2", maxValue:10, naturalMax: 10, secondMaxValue:8},
+  {id:"3", playable:true, label:"3", maxValue:15, naturalMax: 15, secondMaxValue:12},
+  {id:"4", playable:true, label:"4", maxValue:20, naturalMax: 20, secondMaxValue:16},
+  {id:"5", playable:true, label:"5", maxValue:25, naturalMax: 25, secondMaxValue:20},
+  {id:"6", playable:true, label:"6", maxValue:30, naturalMax: 30, secondMaxValue:24},
   {id:"sum1", playable:false, label:"za zbroj 60 ili više dodaj 30", maxValue:0, naturalMax: 0},
-  {id:"max", playable:true, label:"MAX", maxValue:30, naturalMax: 30},
-  {id:"min", playable:true, label:"MIN", maxValue:5, naturalMax: 5},
+  {id:"max", playable:true, label:"MAX", maxValue:30, naturalMax: 30, secondMaxValue:29},
+  {id:"min", playable:true, label:"MIN", maxValue:5, naturalMax: 5, secondMaxValue:6},
   {id:"sum2", playable:false, label:"RAZLIKA MAX I MIN x a", maxValue:0, naturalMax: 0},
-  {id:"pair", playable:true, label:"2 PARA (+10)", maxValue:32, naturalMax: 22, bonus:10},
-  {id:"tris", playable:true, label:"TRIS (+20)", maxValue:38, naturalMax: 18, bonus: 20},
-  {id:"straight", playable:true, label:"SKALA (mala +45 / velika +50)", maxValue:50, naturalMax: 50},
-  {id:"full", playable:true, label:"FULL (+40)", maxValue:68, naturalMax: 28, bonus: 40},
-  {id:"poker", playable:true, label:"POKER (+50)", maxValue:74, naturalMax: 24, bonus: 50},
-  {id:"yamb", playable:true, label:"YAMB (+60)", maxValue:90, naturalMax: 30, bonus: 60},
+  {id:"pair", playable:true, label:"2 PARA (+10)", maxValue:32, naturalMax: 22, bonus:10, secondMaxValue:30},
+  {id:"tris", playable:true, label:"TRIS (+20)", maxValue:38, naturalMax: 18, bonus: 20, secondMaxValue:35},
+  {id:"straight", playable:true, label:"SKALA (mala +45 / velika +50)", maxValue:50, naturalMax: 50, secondMaxValue:45},
+  {id:"full", playable:true, label:"FULL (+40)", maxValue:68, naturalMax: 28, bonus: 40, secondMaxValue:67},
+  {id:"poker", playable:true, label:"POKER (+50)", maxValue:74, naturalMax: 24, bonus: 50, secondMaxValue:70},
+  {id:"yamb", playable:true, label:"YAMB (+60)", maxValue:90, naturalMax: 30, bonus: 60, secondMaxValue:85},
   {id:"sum3", playable:false, label:"Zbroj 2 para tris skala full poker yamb", maxValue:0, naturalMax: 0},
+  {id:"sum4", playable:false, label:"Zbroj stupca", maxValue:0, naturalMax: 0},
 ];
 
 
 interface TicketProps {
   handleFullscreen?: MouseEventHandler;
-  dice: DieData[];
+  dice?: DieData[];
   setDice: Function;
   ticketData: Record<string,string>;
-  setTicketData: Function;
+  setTicketData?: Function;
   emitMessage: (event: string, payload?:any) => void;
+  isPeeking:boolean;
+  isAdmin?:boolean;
+  selectedCell?:string;
+  setSelectedCell?:Function;
 }
-export default function Ticket({handleFullscreen, dice, setDice, ticketData, setTicketData, emitMessage}:TicketProps) {
+export default function Ticket({handleFullscreen, dice, setDice, ticketData, setTicketData, emitMessage, isPeeking, isAdmin,selectedCell,setSelectedCell}:TicketProps) {
   const COLUMNS_NUM = HEADERS.length + 1; // +1 for row labels
   const ROWS_NUM = ROWS.length + 1;       // +1 for header row
-  //const [ticketData, setTicketData] = useState<Record<string,string>>({})
+  const [maxScore, setMaxScore] = useState(0)
+  
 
   // Compute cell size to fit both horizontally and vertically
-  const cellSize = `50px`;
+  const nViewableCells = 18;
+  const HEIGHT = document.documentElement.clientHeight;
+  const gap = 4;
+
+  const csz = (HEIGHT/nViewableCells)-gap;
+  const cellSize = `${csz}px`;
   
   handleFullscreen = handleFullscreen ? handleFullscreen : ()=>{};
 
@@ -90,29 +101,40 @@ export default function Ticket({handleFullscreen, dice, setDice, ticketData, set
   }
 
  const handleClick = (a:any) =>{
+
   let target:any = a.target;
   if (target.id === "") target = target.parentElement
   let [cid, rid] = target.id.split("-")
-  if(!checkIfCellWritable(cid,rid)) return
-  
-  // setTicketData((prev:Record<string,string>) => ({...prev, [target.id]:a.target.innerText}))
+  if(isAdmin){
+    if(setSelectedCell) setSelectedCell(target.id);
+    return;
+  }
 
-  console.log(`Requesting write: ${a.target.innerText} to ${target.id}`)
-  emitMessage("write", {value:a.target.innerText, target: target.id})
+  if(!checkIfCellWritable(cid,rid)) return
+  if(!isPeeking) emitMessage("write", {value:a.target.innerText, target: target.id})
  }
  const getMaxScore = ()=>{
   let total = 0;
   let sums = document.getElementsByClassName("sum");
+
   for(let i=0; i<sums.length; i++){
     let txt = (sums[i].textContent)
     let value = parseInt(txt)
     if (!value) value=0
+    value = value/2
     total+=value;
   }
 
-
-  return "Rezultat: "+total.toString();
+  if(!isAdmin && total >= 2000){
+    //play easter egg
+  }
+  setMaxScore(total)
  }
+
+ useEffect(()=>{
+  getMaxScore();
+ },[ticketData])
+
  const reroll = ()=>{
   setDice((prevDice: DieData[]) =>
       prevDice.map((die) => ({
@@ -124,7 +146,7 @@ export default function Ticket({handleFullscreen, dice, setDice, ticketData, set
 
   return (
     <div
-      className="ticket"
+      className={"ticket " + (isPeeking ? " peek" : "")}
       style={{
         "--columns": COLUMNS_NUM,
         "--rows": ROWS_NUM,
@@ -167,8 +189,10 @@ export default function Ticket({handleFullscreen, dice, setDice, ticketData, set
             <Cell
             key = {`${HEADERS[colIdx].id}-${row.id}`}
             id = {`${HEADERS[colIdx].id}-${row.id}`}
+            selectedCell={selectedCell}
             playable = {row.playable}
             maxValue = {row.maxValue}
+            secondMaxValue = {row.secondMaxValue}
             ticketData = {ticketData}
             bonus = {row.bonus}
             text={getCellText(`${HEADERS[colIdx].id}-${row.id}`)}
@@ -183,7 +207,7 @@ export default function Ticket({handleFullscreen, dice, setDice, ticketData, set
       <Cell
         id="rezultat"
         playable={false}
-        text = {getMaxScore()}
+        text = {"Rezultat: "+maxScore.toString()}
       />
     </div>
   );

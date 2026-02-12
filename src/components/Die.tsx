@@ -5,6 +5,7 @@ type DieProps = {
   colorID: number;       // controls border and pip color
   battery: number;     // 0-100
   size?: number;       // optional, default 40px
+  isPeeking: boolean;
 };
 
 const pipMap: Record<number, number[]> = {
@@ -26,9 +27,10 @@ const colorMap: Record<number, string> = {
 }
 
 
-export const Die: React.FC<DieProps> = ({ value, colorID, battery, size = 40 }) => {
+export const Die: React.FC<DieProps> = ({ value, colorID, battery, size = 40, isPeeking }) => {
   const pipSize = size / 4; // proportional pip size
   let color = colorMap[colorID];
+  if (isPeeking) color="#535353"
   
   return (
     <div className="die-wrapper">

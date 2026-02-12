@@ -5,6 +5,7 @@ const { createServer } = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const path = require("path");
+const {spawn} = require("child_process");
 
 
 // Types
@@ -27,13 +28,14 @@ const players: Record<string, Player> = {};
 const dice: DieData[] = [
   { id: "n1", value: 6, color: 0, battery: 1 },
   { id: "n2", value: 6, color: 1, battery: 1 },
-  { id: "n3", value: 3, color: 2, battery: 1 },
-  { id: "n4", value: 4, color: 3, battery: 1 },
+  { id: "n3", value: 6, color: 2, battery: 1 },
+  { id: "n4", value: 6, color: 3, battery: 1 },
   { id: "n5", value: 5, color: 4, battery: 1 },
-  { id: "n6", value: 6, color: 5, battery: 1 },
+  { id: "n6", value: 1, color: 5, battery: 1 },
 ];
 
 let TURN = 1;
+let dice_proxy_process:any = null;
 const getPlayerByTurn = (turn: number): Player | undefined => {
   return Object.values(players).find((p) => p.turn === turn);
 };
@@ -43,138 +45,54 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static admin page
-// serve /admin
-app.get("/admin", (_:any,res:any) => {
-  res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-<title>Yamb Admin Panel</title>
-<style>
-  body { font-family: sans-serif; margin: 20px; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #aaa; padding: 5px; vertical-align: top; }
-  input { width: 60px; }
-  textarea { width: 300px; height: 80px; }
-  button { margin-left: 5px; }
-</style>
-</head>
-<body>
-<h1>Yamb Admin Panel</h1>
-<h3>Current Turn: <span id="current-turn"></span></h3>
-<table>
-  <thead>
-    <tr>
-      <th>UUID</th>
-      <th>Name</th>
-      <th>Turn</th>
-      <th>Ticket</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="players-table"></tbody>
-</table>
+//Start the dice_proxy process
+console.log("starting dice proxy...")
+dice_proxy_process = spawn("py", ["bluetooth/dice_proxy.py"], {stdio:"inherit", detached:true});
 
-<script>
-async function fetchPlayers() {
-  const res = await fetch('/admin/players-json');
-  const data = await res.json();
-  document.getElementById('current-turn').innerText = data.TURN;
-  const tbody = document.getElementById('players-table');
-  tbody.innerHTML = '';
 
-  for (const uuid in data.players) {
-    const p = data.players[uuid];
-    const tr = document.createElement('tr');
-    tr.innerHTML = \`
-      <td>\${uuid}</td>
-      <td><input id="name-\${uuid}" value="\${p.name}" /></td>
-      <td><input id="turn-\${uuid}" type="number" min="1" value="\${p.turn}" /></td>
-      <td><textarea id="ticket-\${uuid}">\${JSON.stringify(p.ticket, null, 2)}</textarea></td>
-      <td>
-        <button onclick="updatePlayer('\${uuid}')">Update</button>
-      </td>
-    \`;
-    tbody.appendChild(tr);
-  }
-}
-
-// Update player info (name, ticket, turn)
-async function updatePlayer(uuid) {
-  const name = document.getElementById('name-' + uuid).value;
-  const turn = parseInt(document.getElementById('turn-' + uuid).value);
-  let ticketTxt = document.getElementById('ticket-' + uuid).value;
-  if (ticketTxt === null || ticketTxt === undefined || ticketTxt.trim() === "" ) ticketTxt = "{}";
-  const ticket = JSON.parse(ticketTxt);
-
-  // Update ticket & name on server
-  await fetch('/admin/ticket', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uuid, ticket })
-  });
-
-  // Update turn
-  await fetch('/admin/turn', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uuid, newTurn: turn })
-  });
-
-  fetchPlayers();
-}
-
-let isEditing = false;
-
-document.addEventListener("focusin", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-    isEditing = true;
-  }
-});
-
-document.addEventListener("focusout", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-    isEditing = false;
-  }
-});
-
-setInterval(() => {
-  if (!isEditing) {
-    fetchPlayers();
-  }
-}, 2500);
-
-</script>
-</body>
-</html>
-`);
-});
 
 // --- Existing admin endpoints used by webpage ---
 app.get("/admin/players-json", (_:any, res:any) => res.json({ TURN, players }));
 
-app.post("/admin/turn", (req:any, res:any) => {
-  const { uuid, newTurn } = req.body; // uuid of player + new turn number
-  const player = players[uuid];
-  if (!player) return res.status(404).json({ error: "Player not found" });
 
+app.post("/admin/reconnect-dice", (req:any, res:any) => {
+  if(dice_proxy_process) dice_proxy_process.kill()
+  dice_proxy_process = spawn("py", ["bluetooth/dice_proxy.py"], {stdio:"inherit", detached:true});
+});
+
+app.post("/admin/turns", (req:any, res:any) => {
+  const { newOrder } = req.body; // uuid of player + new turn number
+  
+  let uuid = newOrder[0].uuid;
+  for(let i=0; i<newOrder.length;i++){
+    let uuid = newOrder[i].uuid;
+    let newTurn = newOrder[i].turn;
+    players[uuid].turn = newTurn;
+  }
+  res.json({sucess:true})
+
+  io.emit("roll", null);
+  io.to(getPlayerByTurn(TURN)?.uuid).emit("roll",dice);
+
+});
+
+app.post("/admin/set-turn", (req:any, res:any)=>{
+  const {newTurn} = req.body;
   const totalPlayers = Object.keys(players).length;
   if (typeof newTurn !== "number" || newTurn < 1 || newTurn > totalPlayers) {
     return res.status(400).json({ error: "Invalid turn number" });
   }
+  TURN = newTurn;
+  io.emit("roll", null);
+  io.to(getPlayerByTurn(TURN)?.uuid).emit("roll",dice);
+  
+});
 
-  // Check if any other player has this turn number and swap
-  for (const otherUuid in players) {
-    const other = players[otherUuid];
-    if (otherUuid !== uuid && other.turn === newTurn) {
-      other.turn = player.turn; // swap turns
-      break;
-    }
-  }
-
-  player.turn = newTurn;
-  res.json({ success: true, player });
+app.post("/admin/player-rename", (req:any, res:any)=>{
+  const {uuid, newName} = req.body;
+  if (!uuid || !newName) return;
+  players[uuid].name = newName;
+  
 });
 
 app.post("/admin/ticket", (req:any, res:any) => {
@@ -199,6 +117,10 @@ io.on("connection", (socket: any) => {
   socket.join(uuid);
 
   if(uuid === "dice"){
+    socket.on("dice_status", (payload:any) =>{
+      console.log("dice_status",payload);
+    });
+
     socket.on("dice_data",(payload:any) => {
       //console.log("dice_data",payload)//print raw data
       let die = dice.find(d => d.color === payload.color)
@@ -213,11 +135,11 @@ io.on("connection", (socket: any) => {
     });
 
     socket.on("battery_level",(payload:any) => {
-      console.log("battery_level",payload)//print raw data
+      //console.log("battery_level",payload)//print raw data
       let die = dice.find(d => d.id === payload.dice)
       if (die) die.battery = payload.level;
        
-      console.log("new battery", die)
+      //console.log("new battery", die)
       let p = getPlayerByTurn(TURN)
       if(p){
         io.to(p.uuid).emit("roll", dice);
@@ -253,6 +175,7 @@ io.on("connection", (socket: any) => {
   socket.emit("roll", TURN === player.turn ? dice : null);
 
   socket.on("write", (data: { target: string; value: string }) => {
+    if (TURN !== player.turn) return;
     player.ticket[data.target] = data.value;
     io.to(uuid).emit("update_ticket", player.ticket);
     io.to(uuid).emit("roll", null);
@@ -260,8 +183,25 @@ io.on("connection", (socket: any) => {
     const playerCount = Object.keys(players).length;
     TURN = (TURN % playerCount) + 1;
     const nextPlayer = getPlayerByTurn(TURN);
-    if (nextPlayer) io.to(nextPlayer.uuid).emit("roll", dice);
+    if (nextPlayer) {
+      io.to(nextPlayer.uuid).emit("update_ticket", nextPlayer.ticket)
+      io.to(nextPlayer.uuid).emit("roll", dice);
+    }
   });
+
+  socket.on("req_current_player_ticket", (data: {isPeeking:boolean})=>{
+    if(player.turn === TURN) return;
+    if(data.isPeeking){
+      io.to(uuid).emit("update_ticket",player.ticket);
+      io.to(uuid).emit("roll", TURN === player.turn ? dice : null);
+      
+    }else{
+      io.to(uuid).emit("update_ticket",getPlayerByTurn(TURN)?.ticket);
+      io.to(uuid).emit("ghost_dice", dice);
+    }
+
+  })
+
 });
 
 const PORT = 3001;

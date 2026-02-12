@@ -15,7 +15,7 @@
   grid-auto-rows: var(--cell-size);
 
   box-sizing: border-box;
-  padding: 8px;
+  padding: 5px;
 
   background: #b81616;
   border-radius: 16px;
@@ -25,5 +25,7 @@
   
 }
 
-
+.ticket.peek {
+  background: #7c7c7c;
+}
 

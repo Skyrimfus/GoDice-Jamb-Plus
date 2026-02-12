@@ -1,0 +1,20 @@
+.app {
+  width: 100vw;
+  height: 100vh;
+}
+
+.ticket-wrapper{
+  background-color: blue;
+  height: 100vh;
+  
+  margin-left: 25vw;
+}
+
+.ticket-dice-wrapper {
+  display: flex;
+  align-items: flex-start;
+  position: relative; /* DiceStack can be positioned relative to this */
+  max-width: 100vw;   /* never overflow the viewport */
+}
+
+

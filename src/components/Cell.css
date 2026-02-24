@@ -74,7 +74,9 @@
 }
 
 .hint {
-    animation: blinkHint 1s infinite ease-in-out;
+  color:rgb(255, 0, 0);
+  animation: blinkHint 1s infinite ease-in-out;
+  animation-delay: calc(-1s * var(--blink-phase));
 
       /* Optional vendor prefixes for older browsers */
   -webkit-animation: blinkHint 1s infinite ease-in-out;

@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 
 import type { DieData } from './components/types';
 import { DiceStack } from './components/DiceStack';
-import { getUUID, getName } from './components/utils';
+import { getUUID, getName, useGlobalBlinkSync } from './components/utils';
 
 
 
@@ -17,15 +17,15 @@ const socketRef = useRef<Socket | null>(null);
 const uuid = getUUID();
 const [ticketData, setTicketData] = useState<Record<string,string>>({})
 const [dice, setDice] = useState<DieData[]>([
-    { id: "1", value: 1, color: 0, battery: 90 },
-    { id: "2", value: 2, color: 1, battery: 70 },
-    { id: "3", value: 3, color: 2, battery: 50 },
-    { id: "4", value: 4, color: 3, battery: 40 },
-    { id: "5", value: 5, color: 4, battery: 20 },
-    { id: "6", value: 6, color: 5, battery: 10 },
+    { id: "1", value: 1, color: 0, battery: 0 },
+    { id: "2", value: 2, color: 1, battery: 0 },
+    { id: "3", value: 3, color: 2, battery: 0 },
+    { id: "4", value: 4, color: 3, battery: 0 },
+    { id: "5", value: 5, color: 4, battery: 0 },
+    { id: "6", value: 6, color: 5, battery: 0 },
     ])
 
-
+useGlobalBlinkSync();
 const { isSupported, request, release } = useWakeLock({
     reacquireOnPageVisible: true,
   });

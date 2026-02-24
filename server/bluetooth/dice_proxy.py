@@ -9,7 +9,7 @@ DEVICE_PREFIX = "GoDice_"
 
 CONTROL_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"  # write commands
 NOTIFY_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"   # notifications
-
+NAME_TO_COLOR = {}
 # Socket.IO client
 sio = socketio.AsyncClient()
 
@@ -78,7 +78,13 @@ def parse_dice_value(data: bytearray, start: int, die_type='D6'):
 async def handle_notification(sender, data: bytearray, dice_name: str):
     """Parse GoDice messages and emit events to Node server."""
     payload_raw = list(data)
-    await sio.emit("dice_data", {"dice": dice_name, "characteristic": str(sender.uuid), "raw_data": payload_raw})
+
+    if dice_name in NAME_TO_COLOR:
+        color = NAME_TO_COLOR[dice_name]
+    else:
+        color = ""
+    
+    await sio.emit("dice_data", {"dice": dice_name, "characteristic": str(sender.uuid), "raw_data": payload_raw, "color": color})
 
     if len(data) < 3:
         return
@@ -95,6 +101,7 @@ async def handle_notification(sender, data: bytearray, dice_name: str):
     # Dice color
     elif first == 67 and second == 111 and third == 108:  # "Col"
         color = data[3]
+        NAME_TO_COLOR[dice_name] = color
         await sio.emit("dice_color", {"dice": dice_name, "color": color})
     # Stable
     elif first == 83:  # "S"
@@ -116,6 +123,18 @@ async def handle_notification(sender, data: bytearray, dice_name: str):
         value = parse_dice_value(data, 2)
         xyz = parse_xyz(data, 2)
         await sio.emit("move_stable", {"dice": dice_name, "value": value, "xyz": xyz})
+
+
+async def battery_poll_loop(client, control_char, device_name):
+    while client.is_connected:
+        try:
+            # 0x03 = BATTERY_LEVEL request
+            await client.write_gatt_char(control_char, bytearray([0x03]))
+            print(f"{device_name}: Requested battery level")
+        except Exception as e:
+            print(f"{device_name}: Battery request failed:", e)
+
+        await asyncio.sleep(30)
 
 async def connect_dice(device_name: str):
     while True:
@@ -146,6 +165,11 @@ async def connect_dice(device_name: str):
                 # Example: send 0x17 to die after connection
                 await client.write_gatt_char(control_char, bytearray([0x17]))
                 print(f"{device_name}: Sent 0x17")
+
+                # Start battery polling task
+                battery_task = asyncio.create_task(
+                    battery_poll_loop(client, control_char, device_name)
+                )
 
                 while client.is_connected:
                     await asyncio.sleep(1)

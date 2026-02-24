@@ -102,16 +102,12 @@ export default function Ticket({handleFullscreen, dice, setDice, ticketData, set
  }
  const getMaxScore = ()=>{
   let total = 0;
-  console.log("TOTAL 0")
   let sums = document.getElementsByClassName("sum");
-  console.log(sums)
   for(let i=0; i<sums.length; i++){
     let txt = (sums[i].textContent)
     let value = parseInt(txt)
     if (!value) value=0
     total+=value;
-
-    console.log(i)
   }
 
 

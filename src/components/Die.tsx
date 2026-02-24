@@ -20,14 +20,14 @@ const colorMap: Record<number, string> = {
     1: "#FF0000",
     2: "#13b904",
     3: "#2600ff",
-    4: "#f1ee12",
+    4: "#e9e51b",
     5: "#fc8f00",
 
 }
 
 
 export const Die: React.FC<DieProps> = ({ value, colorID, battery, size = 40 }) => {
-  const pipSize = size / 6; // proportional pip size
+  const pipSize = size / 4; // proportional pip size
   let color = colorMap[colorID];
   
   return (
@@ -38,7 +38,7 @@ export const Die: React.FC<DieProps> = ({ value, colorID, battery, size = 40 }) 
           width: size,
           height: size,
           border: `3px solid ${color}`,   // border color
-          backgroundColor: "#fff",        // neutral background
+          backgroundColor: "#f1f1f1",        // neutral background
           padding: pipSize / 2,
           gap: pipSize / 2,
         }}

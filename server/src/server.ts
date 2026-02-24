@@ -25,12 +25,12 @@ type Player = {
 // Game state
 const players: Record<string, Player> = {};
 const dice: DieData[] = [
-  { id: "n1", value: 6, color: 0, battery: 90 },
-  { id: "n2", value: 6, color: 1, battery: 70 },
-  { id: "n3", value: 3, color: 2, battery: 50 },
-  { id: "n4", value: 4, color: 3, battery: 40 },
-  { id: "n5", value: 5, color: 4, battery: 20 },
-  { id: "n6", value: 6, color: 5, battery: 10 },
+  { id: "n1", value: 6, color: 0, battery: 1 },
+  { id: "n2", value: 6, color: 1, battery: 1 },
+  { id: "n3", value: 3, color: 2, battery: 1 },
+  { id: "n4", value: 4, color: 3, battery: 1 },
+  { id: "n5", value: 5, color: 4, battery: 1 },
+  { id: "n6", value: 6, color: 5, battery: 1 },
 ];
 
 let TURN = 1;
@@ -104,7 +104,9 @@ async function fetchPlayers() {
 async function updatePlayer(uuid) {
   const name = document.getElementById('name-' + uuid).value;
   const turn = parseInt(document.getElementById('turn-' + uuid).value);
-  const ticket = JSON.parse(document.getElementById('ticket-' + uuid).value);
+  let ticketTxt = document.getElementById('ticket-' + uuid).value;
+  if (ticketTxt === null || ticketTxt === undefined || ticketTxt.trim() === "" ) ticketTxt = "{}";
+  const ticket = JSON.parse(ticketTxt);
 
   // Update ticket & name on server
   await fetch('/admin/ticket', {
@@ -123,8 +125,26 @@ async function updatePlayer(uuid) {
   fetchPlayers();
 }
 
-fetchPlayers();
-setInterval(fetchPlayers, 5000);
+let isEditing = false;
+
+document.addEventListener("focusin", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+    isEditing = true;
+  }
+});
+
+document.addEventListener("focusout", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+    isEditing = false;
+  }
+});
+
+setInterval(() => {
+  if (!isEditing) {
+    fetchPlayers();
+  }
+}, 2500);
+
 </script>
 </body>
 </html>
@@ -180,24 +200,33 @@ io.on("connection", (socket: any) => {
 
   if(uuid === "dice"){
     socket.on("dice_data",(payload:any) => {
-      console.log("dice_data",payload)//print raw data
-      //let die = parseRawDiceData(payload)
+      //console.log("dice_data",payload)//print raw data
+      let die = dice.find(d => d.color === payload.color)
+      if (die && payload.color !== "") die.id = payload.dice;
     });
     socket.on("dice_color",(payload:any) => {
-      console.log("dice_color",payload)//print raw data
+      //console.log("dice_color",payload)//print raw data
       let die = dice.find(d => d.color === payload.color)
       if (die) die.id = payload.dice;
+
+      
     });
 
     socket.on("battery_level",(payload:any) => {
       console.log("battery_level",payload)//print raw data
       let die = dice.find(d => d.id === payload.dice)
       if (die) die.battery = payload.level;
+       
+      console.log("new battery", die)
+      let p = getPlayerByTurn(TURN)
+      if(p){
+        io.to(p.uuid).emit("roll", dice);
+      }
     });
 
     ["stable", "fake_stable", "move_stable"].forEach(eventname => {
       socket.on(eventname, (payload:any) => {
-        console.log(eventname, payload);
+        //console.log(eventname, payload);
         let die = dice.find(d => d.id === payload.dice);
         if (die) die.value = payload.value;
 

@@ -103,6 +103,10 @@ io.on("connection", (socket: any) => {
   socket.join(uuid);
 
   if(uuid === "dice"){
+    socket.on("dice_status", (payload:any) =>{
+      console.log("dice_status",payload);
+    });
+
     socket.on("dice_data",(payload:any) => {
       //console.log("dice_data",payload)//print raw data
       let die = dice.find(d => d.color === payload.color)
@@ -117,11 +121,11 @@ io.on("connection", (socket: any) => {
     });
 
     socket.on("battery_level",(payload:any) => {
-      console.log("battery_level",payload)//print raw data
+      //console.log("battery_level",payload)//print raw data
       let die = dice.find(d => d.id === payload.dice)
       if (die) die.battery = payload.level;
        
-      console.log("new battery", die)
+      //console.log("new battery", die)
       let p = getPlayerByTurn(TURN)
       if(p){
         io.to(p.uuid).emit("roll", dice);

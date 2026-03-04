@@ -74,6 +74,9 @@ def parse_dice_value(data: bytearray, start: int, die_type='D6'):
     else:
         return closest_vector(D24_VECTORS, xyz)
 
+
+
+
 # ----- BLE handling -----
 async def handle_notification(sender, data: bytearray, dice_name: str):
     """Parse GoDice messages and emit events to Node server."""
@@ -129,9 +132,11 @@ async def battery_poll_loop(client, control_char, device_name):
     while client.is_connected:
         try:
             # 0x03 = BATTERY_LEVEL request
+            await sio.emit("dice_status", {"dice":device_name, "message":"Requested battery level."})
             await client.write_gatt_char(control_char, bytearray([0x03]))
             print(f"{device_name}: Requested battery level")
         except Exception as e:
+            await sio.emit("dice_status", {"dice":device_name, "message":"Battery request failed.", "error":str(e)})
             print(f"{device_name}: Battery request failed:", e)
 
         await asyncio.sleep(300)
@@ -146,6 +151,7 @@ async def connect_dice(device_name: str):
 
             async with BleakClient(device) as client:
                 print(f"{device_name} connected")
+                await sio.emit("dice_status", {"dice":device_name, "message":"Connected."})
 
                 control_char = None
                 notify_char = None
@@ -157,7 +163,8 @@ async def connect_dice(device_name: str):
                             notify_char = char
 
                 if not control_char or not notify_char:
-                    print(f"{device_name}: Required characteristics not found")
+                    await sio.emit("dice_status", {"dice":device_name, "message":"Reqired characteristics not found!", "extra":client.services})
+                    print(f"{device_name}: Required characteristics not found!")
                     return
 
                 await client.start_notify(notify_char, lambda s, d: asyncio.create_task(handle_notification(s, d, device_name)))
@@ -175,9 +182,11 @@ async def connect_dice(device_name: str):
                     await asyncio.sleep(1)
 
         except Exception as e:
+            await sio.emit("dice_status", {"dice":device_name, "message":"Failed to handle.", "error":str(e)})
             print(f"Failed to handle {device_name}: {e}")
 
-        print(f"{device_name} disconnected, retrying in 3 seconds...")
+        await sio.emit("dice_status", {"dice":device_name, "message":"Device disconnected. Retrying..."})
+        print(f"{device_name} disconnected, retrying...")
         await asyncio.sleep(1)
 
 async def monitor_dice():
@@ -190,12 +199,14 @@ async def monitor_dice():
 
         for name in go_dice_names:
             if name not in connected:
+                await sio.emit("dice_status", {"dice":name, "message":"New device detected."})
                 print(f"Found new dice: {name}")
                 tasks[name] = asyncio.create_task(connect_dice(name))
                 connected.add(name)
 
         to_remove = [name for name in connected if name not in go_dice_names]
         for name in to_remove:
+            await sio.emit("dice_status", {"dice":name, "message":"No longer available. Retrying."})
             print(f"{name} is no longer available, will retry")
             connected.remove(name)
 

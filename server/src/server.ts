@@ -5,6 +5,7 @@ const { createServer } = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const path = require("path");
+const {spawn} = require("child_process");
 
 
 // Types
@@ -34,6 +35,7 @@ const dice: DieData[] = [
 ];
 
 let TURN = 1;
+let dice_proxy_process:any = null;
 const getPlayerByTurn = (turn: number): Player | undefined => {
   return Object.values(players).find((p) => p.turn === turn);
 };
@@ -43,8 +45,20 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+//Start the dice_proxy process
+console.log("starting dice proxy...")
+dice_proxy_process = spawn("py", ["bluetooth/dice_proxy.py"], {stdio:"inherit", detached:true});
+
+
+
 // --- Existing admin endpoints used by webpage ---
 app.get("/admin/players-json", (_:any, res:any) => res.json({ TURN, players }));
+
+
+app.post("/admin/reconnect-dice", (req:any, res:any) => {
+  if(dice_proxy_process) dice_proxy_process.kill()
+  dice_proxy_process = spawn("py", ["bluetooth/dice_proxy.py"], {stdio:"inherit", detached:true});
+});
 
 app.post("/admin/turns", (req:any, res:any) => {
   const { newOrder } = req.body; // uuid of player + new turn number

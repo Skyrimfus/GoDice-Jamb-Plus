@@ -129,12 +129,17 @@ export default function AdminPanel({ emitMessage, onClose }: Props) {
     
 
   }
-
+  const handleReconnectDiceClick = async () => {
+    let c = confirm("Reconnect dice?")
+    if(!c) return;
+    await axios.post("/admin/reconnect-dice");
+  }
 
   const sortedPlayers = players.slice().sort((a,b)=>a.turn-b.turn);
   return (
     <div className="admin-overlay">
       <button className="close-btn" onClick={onClose}>Close</button>
+      <button onClick={handleReconnectDiceClick}>Reconnect Dice</button>
       <div className="turn-row">
         <label className="text">Turn: {currentTurn}</label>
         <button className="btn increaseTurn" onClick={increaseTurn}>+</button>

@@ -154,6 +154,7 @@ io.on("connection", (socket: any) => {
 
         let p = getPlayerByTurn(TURN)
         io.to(p?.uuid).emit("roll", dice);
+        io.except(p?.uuid).emit("ghost_dice", dice)
       })
     })
 
